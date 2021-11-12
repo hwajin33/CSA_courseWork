@@ -30,6 +30,10 @@ func TestMain(m *testing.M) {
 			sdlEvents <- gol.FinalTurnComplete{}
 		}()
 		result <- res
+		go func() {
+			sdlEvents <- gol.FinalTurnComplete{}
+		}()
+		result <- res
 	}()
 	// sdl.Run(p, sdlEvents, nil)
 	var w *sdl.Window = nil
