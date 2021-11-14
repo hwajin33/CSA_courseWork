@@ -26,6 +26,7 @@ func Run(p Params, events chan<- Event, keyPresses <-chan rune) {
 		output:   ioOutput,
 		input:    ioInput,
 	}
+	// reading in the pgm image byte by byte
 	go startIo(p, ioChannels)
 
 	distributorChannels := distributorChannels{

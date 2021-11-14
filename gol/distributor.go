@@ -1,5 +1,12 @@
 package gol
 
+import (
+
+	"uk.ac.bris.cs/gameoflife/util"
+	"fmt"
+
+)
+
 type distributorChannels struct {
 	events     chan<- Event
 	ioCommand  chan<- ioCommand
@@ -9,64 +16,128 @@ type distributorChannels struct {
 	ioInput    <-chan uint8
 }
 
-func calculateNextState(p Params, world [][]byte) [][]byte {
-	iWidth := p.ImageWidth
-	iHeight := p.ImageHeight
-	r := iWidth
-	c := iHeight
 
-	makeAnotherWorld := make([][]byte, len(world))
-	for i := range world {
-		makeAnotherWorld[i] = make([]byte, len(world[i]))
-		copy(makeAnotherWorld[i], world[i])
-	}
 
-	for imageWidth := 0; imageWidth < iWidth; imageWidth++ {
 
-		//if condition --> cal state
-		// cal. live cell -> array send the live ones
-		// for loop -> if alive -> print
+const alive = 255
+const dead = 0
 
-		for imageHeight := 0; imageHeight < iHeight; imageHeight++ {
-			// 2 more for loop -> conditions for cal
-			// if exclude itself (row = next step)
+func mod(x, m int) int {
+	return (x + m) % m
+}
 
-			alive := 0
-			for i := r - 1; i <= r + 1; i++ {
-				for k := c - 1; k <= c + 1; k++ {
-
-					if i == r && k == c {
-						continue
-					}
-					if makeAnotherWorld[((iWidth + i) % iWidth)] [((iHeight + k) % iHeight)] == 255 {
-						alive++
-					}
+func calculateNeighbours(p Params, x, y int, world [][]byte) int {
+	neighbours := 0
+	for i := -1; i <= 1; i++ {
+		for j := -1; j <= 1; j++ {
+			if i != 0 || j != 0 {
+				if world[mod(y+i, p.ImageHeight)][mod(x+j, p.ImageWidth)] == alive {
+					neighbours++
 				}
-			}
-
-			if alive < 2 || alive > 3 {
-				world[r][c] = 0
-			}
-			if alive == 3 {
-				world[r][c] = 255
 			}
 		}
 	}
-	return world
+	return neighbours
 }
+
+
+func calculateNextState(p Params, currentTurnWorld [][]byte) [][]byte {
+	newWorld := make([][]byte, p.ImageHeight)
+	for i := range newWorld {
+		newWorld[i] = make([]byte, p.ImageWidth)
+	}
+	for y := 0; y < p.ImageHeight; y++ {
+		for x := 0; x < p.ImageWidth; x++ {
+			neighbours := calculateNeighbours(p, x, y, currentTurnWorld)
+			if currentTurnWorld[y][x] == alive {
+				if neighbours == 2 || neighbours == 3 {
+					newWorld[y][x] = alive
+				} else {
+					newWorld[y][x] = dead
+				}
+			} else {
+				if neighbours == 3 {
+					newWorld[y][x] = alive
+				} else {
+					newWorld[y][x] = dead
+				}
+			}
+		}
+	}
+	return newWorld
+}
+
+func calculateAliveCells(p Params, world [][]byte) []util.Cell{
+
+	aliveCells := []util.Cell{}
+	var haha util.Cell
+
+	for y := 0; y < p.ImageHeight; y++ {
+		for x := 0; x < p.ImageWidth; x++ {
+			if world[y][x] == 255 {
+				haha.X = x
+				haha.Y = y
+				aliveCells = append(aliveCells, haha)
+			}
+		}
+	}
+
+
+
+
+	return aliveCells
+}
+
+
+
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c distributorChannels) {
 
 	// TODO: Create a 2D slice to store the world.
 
+	newWorld := make([][]byte, p.ImageHeight)
+	for i := range newWorld {
+		newWorld[i] = make([]byte, p.ImageWidth)
+	}
+
+
+
+	filename := fmt.Sprintf("%vx%v", p.ImageWidth, p.ImageHeight)
+
+	c.ioFilename <- filename
+	c.ioCommand <- ioInput
+
+	for y := 0; y < p.ImageHeight; y++ {
+		for x := 0; x < p.ImageWidth; x++ {
+			newWorld[y][x] = <-c.ioInput
+
+		}
+	}
+
+
+
 	turn := 0
 
-	//for i := 0; i < p.Turns; i++ {}
 
 	// TODO: Execute all turns of the Game of Life.
+	for i := 0; i < p.Turns; i++ {
+		if i==p.Turns{
+			// TODO: Report the final state using FinalTurnCompleteEvent.
+			c.events <- FinalTurnComplete {
+				CompletedTurns: turn,
+				Alive:calculateAliveCells(p,newWorld)}
+		}
+		newWorld = calculateNextState(p, newWorld)
 
-	// TODO: Report the final state using FinalTurnCompleteEvent.
+
+		c.events <- TurnComplete{CompletedTurns: turn}
+		turn++
+	}
+
+
+
+
 
 
 
@@ -75,7 +146,7 @@ func distributor(p Params, c distributorChannels) {
 	<-c.ioIdle
 
 	c.events <- StateChange{turn, Quitting}
-	
+
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
 }
