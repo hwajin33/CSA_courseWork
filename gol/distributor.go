@@ -1,10 +1,8 @@
 package gol
 
 import (
-
-	"uk.ac.bris.cs/gameoflife/util"
 	"fmt"
-
+	"uk.ac.bris.cs/gameoflife/util"
 )
 
 type distributorChannels struct {
@@ -28,9 +26,9 @@ func mod(x, m int) int {
 
 func calculateNeighbours(p Params, x, y int, world [][]byte) int {
 	neighbours := 0
-	for i := -1; i <= 2; i++ {
-		for j := -1; j <= 2; j++ {
-			if i != 0 || j != 0 {
+	for i := -1; i <= 1; i++ {
+		for j := -1; j <= 1; j++ {
+			if !(i == 0 && j == 0){
 				if world[mod(y+i, p.ImageHeight)][mod(x+j, p.ImageWidth)] == alive {
 					neighbours++
 				}
@@ -82,9 +80,6 @@ func calculateAliveCells(p Params, world [][]byte) []util.Cell{
 		}
 	}
 
-
-
-
 	return aliveCells
 }
 
@@ -101,8 +96,6 @@ func distributor(p Params, c distributorChannels) {
 		currentWorld[i] = make([]byte, p.ImageWidth)
 	}
 
-
-
 	filename := fmt.Sprintf("%vx%v", p.ImageWidth, p.ImageHeight)
 
 	c.ioCommand <- ioInput
@@ -111,33 +104,27 @@ func distributor(p Params, c distributorChannels) {
 	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
 			currentWorld[y][x] = <-c.ioInput
-
 		}
 	}
 
-
-
 	turn := 0
-
-
 
 	// TODO: Execute all turns of the Game of Life.
 	for i := 0; i < p.Turns; i++ {
 
-
-
-
 		currentWorld = calculateNextState(p, currentWorld)
-		aliveCell := calculateAliveCells(p, currentWorld)
+
 
 		//world = ...
 		//tempworld = copy the previous world
 		//compute new world(world)
 		// TODO: Report the final state using FinalTurnCompleteEvent.
 
-		c.events <- FinalTurnComplete{turn, aliveCell}
+
 	}
 
+	aliveCell := calculateAliveCells(p, currentWorld)
+	c.events <- FinalTurnComplete{turn, aliveCell}
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
