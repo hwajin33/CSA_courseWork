@@ -123,12 +123,12 @@ func distributor(p Params, c distributorChannels) {
 
 	// TODO: Execute all turns of the Game of Life.
 	for i := 0; i < p.Turns; i++ {
-		tempWorld := make([][]byte, p.ImageHeight)
-		for j := range tempWorld {
-			tempWorld[j] = make([]byte, p.ImageWidth)
-		}
-		calculateNextState(p, currentWorld)
-		aliveCell := calculateAliveCells(p, tempWorld)
+
+
+
+
+		currentWorld = calculateNextState(p, currentWorld)
+		aliveCell := calculateAliveCells(p, currentWorld)
 
 		//world = ...
 		//tempworld = copy the previous world
