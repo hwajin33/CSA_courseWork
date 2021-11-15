@@ -28,8 +28,8 @@ func mod(x, m int) int {
 
 func calculateNeighbours(p Params, x, y int, world [][]byte) int {
 	neighbours := 0
-	for i := -1; i <= 1; i++ {
-		for j := -1; j <= 1; j++ {
+	for i := -1; i <= 2; i++ {
+		for j := -1; j <= 2; j++ {
 			if i != 0 || j != 0 {
 				if world[mod(y+i, p.ImageHeight)][mod(x+j, p.ImageWidth)] == alive {
 					neighbours++
@@ -105,8 +105,8 @@ func distributor(p Params, c distributorChannels) {
 
 	filename := fmt.Sprintf("%vx%v", p.ImageWidth, p.ImageHeight)
 
-	c.ioFilename <- filename
 	c.ioCommand <- ioInput
+	c.ioFilename <- filename
 
 	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
@@ -120,26 +120,23 @@ func distributor(p Params, c distributorChannels) {
 	turn := 0
 
 
+
 	// TODO: Execute all turns of the Game of Life.
 	for i := 0; i < p.Turns; i++ {
 		tempWorld := make([][]byte, p.ImageHeight)
+		for j := range tempWorld {
+			tempWorld[j] = make([]byte, p.ImageWidth)
+		}
 		calculateNextState(p, currentWorld)
-		calculateAliveCells(p, tempWorld)
-
-
+		aliveCell := calculateAliveCells(p, tempWorld)
 
 		//world = ...
 		//tempworld = copy the previous world
 		//compute new world(world)
 		// TODO: Report the final state using FinalTurnCompleteEvent.
 
+		c.events <- FinalTurnComplete{i, aliveCell}
 	}
-
-
-
-
-
-
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
