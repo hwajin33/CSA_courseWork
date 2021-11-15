@@ -135,7 +135,7 @@ func distributor(p Params, c distributorChannels) {
 		//compute new world(world)
 		// TODO: Report the final state using FinalTurnCompleteEvent.
 
-		c.events <- FinalTurnComplete{i, aliveCell}
+		c.events <- FinalTurnComplete{turn, aliveCell}
 	}
 
 	// Make sure that the Io has finished any output before exiting.
