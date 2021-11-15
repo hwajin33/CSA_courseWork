@@ -96,9 +96,9 @@ func distributor(p Params, c distributorChannels) {
 
 	// TODO: Create a 2D slice to store the world.
 
-	newWorld := make([][]byte, p.ImageHeight)
-	for i := range newWorld {
-		newWorld[i] = make([]byte, p.ImageWidth)
+	currentWorld := make([][]byte, p.ImageHeight)
+	for i := range currentWorld {
+		currentWorld[i] = make([]byte, p.ImageWidth)
 	}
 
 
@@ -110,7 +110,7 @@ func distributor(p Params, c distributorChannels) {
 
 	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
-			newWorld[y][x] = <-c.ioInput
+			currentWorld[y][x] = <-c.ioInput
 
 		}
 	}
@@ -122,17 +122,17 @@ func distributor(p Params, c distributorChannels) {
 
 	// TODO: Execute all turns of the Game of Life.
 	for i := 0; i < p.Turns; i++ {
-		if i==p.Turns{
-			// TODO: Report the final state using FinalTurnCompleteEvent.
-			c.events <- FinalTurnComplete {
-				CompletedTurns: turn,
-				Alive:calculateAliveCells(p,newWorld)}
-		}
-		newWorld = calculateNextState(p, newWorld)
+		tempWorld := make([][]byte, p.ImageHeight)
+		calculateNextState(p, currentWorld)
+		calculateAliveCells(p, tempWorld)
 
 
-		c.events <- TurnComplete{CompletedTurns: turn}
-		turn++
+
+		//world = ...
+		//tempworld = copy the previous world
+		//compute new world(world)
+		// TODO: Report the final state using FinalTurnCompleteEvent.
+
 	}
 
 
