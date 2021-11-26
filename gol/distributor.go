@@ -47,15 +47,15 @@ func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWor
 			neighbours := calculateNeighbourCells(p, x, y, currentTurnWorld)
 			if currentTurnWorld[y][x] == alive {
 				if neighbours == 2 || neighbours == 3 {
-					newWorld[y][x] = alive
+					newWorld[y-startY][x] = alive
 				} else {
-					newWorld[y][x] = dead
+					newWorld[y-startY][x] = dead
 				}
 			} else {
 				if neighbours == 3 {
-					newWorld[y][x] = alive
+					newWorld[y-startY][x] = alive
 				} else {
-					newWorld[y][x] = dead
+					newWorld[y-startY][x] = dead
 				}
 			}
 		}
@@ -144,12 +144,10 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Execute all turns of the Game of Life.
 	for turn < p.Turns  {
 
-		//nextWorld := make([][]byte, 0)
-
-		nextWorld := make([][]byte, p.ImageHeight)
-		for i := range nextWorld {
-			nextWorld[i] = make([]byte, p.ImageWidth)
-		}
+		//nextWorld := make([][]byte, p.ImageHeight)
+		//for i := range nextWorld {
+		//	nextWorld[i] = make([]byte, p.ImageWidth)
+		//}
 
 		if p.Threads == 1 {
 			currentWorld = calculateNextState(0, p.ImageHeight, 0, p.ImageWidth, p, currentWorld)
@@ -168,10 +166,10 @@ func distributor(p Params, c distributorChannels) {
 				// when we reach to the last thread, start from that thread and end at the p.ImageHeight
 				// if we have floating points after we get the worker height && when we reach to the last thread
 				if currentThread == p.Threads - 1 {
-					fmt.Printf("t [%d] threads = %d\n", currentThread, p.Threads)
+					//fmt.Printf("t [%d] threads = %d\n", currentThread, p.Threads)
 					go worker(currentThread * workerHeight, p.ImageHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				} else {
-					fmt.Printf("b [%d]threads = %d\n", currentThread, p.Threads)
+					//fmt.Printf("b [%d]threads = %d\n", currentThread, p.Threads)
 					go worker(currentThread * workerHeight, (currentThread + 1) * workerHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				}
 				currentThread++
@@ -182,6 +180,7 @@ func distributor(p Params, c distributorChannels) {
 				//currentWorld = nextWorld
 			}
 
+			nextWorld := make([][]byte, 0)
 			// make another for loop going up #of threads -> assembling the world
 			for partThread := 0; partThread < p.Threads; partThread++ {
 				portion := <-out[partThread]
