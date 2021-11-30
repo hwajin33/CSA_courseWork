@@ -104,8 +104,8 @@ func worker(startY, endY, startX, endX int, world [][]byte, out chan<- [][]uint8
 	out <- imagePortion
 }
 
-func loadImage (p Params, c distributorChannels, world [][]byte, turn int) {
-	filename := fmt.Sprintf("%vx%v", p.ImageWidth, p.ImageHeight)
+func loadImage(p Params, c distributorChannels, world [][]byte, turn int) {
+	filename := fmt.Sprintf("%vx%vx%d", p.ImageWidth, p.ImageHeight, turn)
 
 	c.ioCommand <- ioInput
 	c.ioFilename <- filename
@@ -142,7 +142,7 @@ func distributor(p Params, c distributorChannels) {
 	turn := 0
 
 	// TODO: Execute all turns of the Game of Life.
-	for turn < p.Turns  {
+	for turn < p.Turns {
 
 		//nextWorld := make([][]byte, p.ImageHeight)
 		//for i := range nextWorld {
@@ -165,19 +165,14 @@ func distributor(p Params, c distributorChannels) {
 			for currentThread < p.Threads {
 				// when we reach to the last thread, start from that thread and end at the p.ImageHeight
 				// if we have floating points after we get the worker height && when we reach to the last thread
-				if currentThread == p.Threads - 1 {
+				if currentThread == p.Threads-1 {
 					//fmt.Printf("t [%d] threads = %d\n", currentThread, p.Threads)
-					go worker(currentThread * workerHeight, p.ImageHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
+					go worker(currentThread*workerHeight, p.ImageHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				} else {
 					//fmt.Printf("b [%d]threads = %d\n", currentThread, p.Threads)
-					go worker(currentThread * workerHeight, (currentThread + 1) * workerHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
+					go worker(currentThread*workerHeight, (currentThread+1)*workerHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				}
 				currentThread++
-
-				// assembling the world
-				//portion := <-out[currentThread]
-				//nextWorld = append(nextWorld, portion...)
-				//currentWorld = nextWorld
 			}
 
 			nextWorld := make([][]byte, 0)
@@ -196,7 +191,7 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events <- FinalTurnComplete{turn, aliveCell}
 
-	//loadImage(p, c, currentWorld, turn)
+	loadImage(p, c, currentWorld, turn)
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
