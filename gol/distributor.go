@@ -2,6 +2,8 @@ package gol
 
 import (
 	"fmt"
+	"sync"
+	"time"
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
@@ -25,7 +27,7 @@ func calculateNeighbourCells(p Params, x, y int, world [][]byte) int {
 	neighbours := 0
 	for i := -1; i <= 1; i++ {
 		for j := -1; j <= 1; j++ {
-			if !(i == 0 && j == 0){
+			if !(i == 0 && j == 0) {
 				if world[mod(y+i, p.ImageHeight)][mod(x+j, p.ImageWidth)] == alive {
 					neighbours++
 				}
@@ -35,11 +37,10 @@ func calculateNeighbourCells(p Params, x, y int, world [][]byte) int {
 	return neighbours
 }
 
-
 func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWorld [][]byte) [][]byte {
-	newWorld := make([][]byte, endY - startY)
+	newWorld := make([][]byte, endY-startY)
 	for i := range newWorld {
-		newWorld[i] = make([]byte, endX - startX)
+		newWorld[i] = make([]byte, endX-startX)
 	}
 
 	for y := startY; y < endY; y++ {
@@ -63,7 +64,7 @@ func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWor
 	return newWorld
 }
 
-func calculateAliveCells(p Params, world [][]byte) []util.Cell{
+func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 
 	aliveCells := []util.Cell{}
 	var cell util.Cell
@@ -105,22 +106,22 @@ func worker(startY, endY, startX, endX int, world [][]byte, out chan<- [][]uint8
 }
 
 func loadImage(p Params, c distributorChannels, world [][]byte, turn int) {
-	filename := fmt.Sprintf("%vx%vx%d", p.ImageWidth, p.ImageHeight, turn)
+	filename := fmt.Sprintf("%vx%vx%d", p.ImageHeight, p.ImageWidth, turn)
 
-	c.ioCommand <- ioInput
+	c.ioCommand <- ioOutput
 	c.ioFilename <- filename
-
 	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
 			c.ioOutput <- world[y][x]
 		}
 	}
-	c.events <- ImageOutputComplete{turn, filename}
-
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c distributorChannels) {
+
+	// iterate through every single cell in current world and evertime theres an alivcell pass a cell flipped event through the events channel
+	turn := 0
 
 	// TODO: Create a 2D slice to store the world.
 	currentWorld := make([][]byte, p.ImageHeight)
@@ -139,21 +140,56 @@ func distributor(p Params, c distributorChannels) {
 		}
 	}
 
-	turn := 0
+
+	/*for y := 0; y < p.ImageHeight; y++ {
+		for x := 0; x < p.ImageWidth; x++ {
+			if currentWorld [y][x] == 255 {
+				c.events <- CellFlipped{CompletedTurns: 0, util.Cell{x,y}}
+			}
+		}
+	}*/
+
+	//make aliveCellCount inside the ticker
+	ticker := time.NewTicker(2 * time.Second)
+	ml := new(sync.Mutex)
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				ml.Lock()
+				t:= turn
+				aliveCells:= len(calculateAliveCells(p, currentWorld))
+				ml.Unlock()
+				c.events <- AliveCellsCount{CompletedTurns: t, CellsCount: aliveCells}
+			default:
+			//	break
+			}
+			//break
+			//fmt.Println("step2")
+		}
+	}()
+
+	//go func() {
+	//	select {
+	//	case <-ticker.C:
+	//		ml.Lock()
+	//		t:= turn
+	//		aliveCells:= len(calculateAliveCells(p, currentWorld))
+	//		ml.Unlock()
+	//		c.events <- AliveCellsCount{CompletedTurns: t, CellsCount: aliveCells}
+	//	}
+	//}()
 
 	// TODO: Execute all turns of the Game of Life.
 	for turn < p.Turns {
-
-		//nextWorld := make([][]byte, p.ImageHeight)
-		//for i := range nextWorld {
-		//	nextWorld[i] = make([]byte, p.ImageWidth)
-		//}
-
 		if p.Threads == 1 {
 			currentWorld = calculateNextState(0, p.ImageHeight, 0, p.ImageWidth, p, currentWorld)
 		} else {
 			workerHeight := p.ImageHeight / p.Threads
-			//modHeight := (p.ImageHeight) % p.Threads
 
 			out := make([]chan [][]uint8, p.Threads)
 			for j := range out {
@@ -181,17 +217,33 @@ func distributor(p Params, c distributorChannels) {
 				portion := <-out[partThread]
 				nextWorld = append(nextWorld, portion...)
 			}
+
+			/*for y := 0; y < p.ImageHeight; y++ {
+				for x := 0; x < p.ImageWidth; x++ {
+					if nextWorld [y][x] != currentWorld[y][x] {
+						c.events <- CellFlipped{CompletedTurns: turn, util.Cell{x,y}}
+					}
+				}
+			}*/
+
+			ml.Lock()
 			// swapping the worlds
 			currentWorld, nextWorld = nextWorld, currentWorld
+			ml.Unlock()
 		}
+		ml.Lock()
 		turn++
+		ml.Unlock()
+
+		c.events <- TurnComplete{turn}
 	}
+	done <- true
+	loadImage(p, c, currentWorld, turn)
 
 	aliveCell := calculateAliveCells(p, currentWorld)
+
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events <- FinalTurnComplete{turn, aliveCell}
-
-	loadImage(p, c, currentWorld, turn)
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
