@@ -105,7 +105,7 @@ func worker(startY, endY, startX, endX int, world [][]byte, out chan<- [][]uint8
 	out <- imagePortion
 }
 
-func loadImage(p Params, c distributorChannels, world [][]byte, turn int) {
+func saveImage(p Params, c distributorChannels, world [][]byte, turn int) {
 	filename := fmt.Sprintf("%vx%vx%d", p.ImageHeight, p.ImageWidth, turn)
 
 	c.ioCommand <- ioOutput
@@ -238,7 +238,7 @@ func distributor(p Params, c distributorChannels) {
 		c.events <- TurnComplete{turn}
 	}
 	done <- true
-	loadImage(p, c, currentWorld, turn)
+	saveImage(p, c, currentWorld, turn)
 
 	aliveCell := calculateAliveCells(p, currentWorld)
 
