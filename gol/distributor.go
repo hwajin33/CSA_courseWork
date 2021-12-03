@@ -66,7 +66,7 @@ func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWor
 
 func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 
-	aliveCells := []util.Cell{}
+	var aliveCells []util.Cell
 	var cell util.Cell
 
 	for y := 0; y < p.ImageHeight; y++ {
@@ -140,27 +140,27 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 	go func() {
 		for  { //turn < p.Turns
 			select {
-			// key presses
-			//case buttonKey := <- keyPress:
-			//	if buttonKey == 'q' {
-			//		saveImage(p, c, currentWorld, turn)
-			//		c.events <- ImageOutputComplete{CompletedTurns: turn}
-			//		c.events <- FinalTurnComplete{CompletedTurns: turn}
-			//		c.events <- StateChange{turn, Quitting}
-			//	} else if buttonKey == 's' {
-			//		saveImage(p, c, currentWorld, turn)
-			//		c.events <- ImageOutputComplete{CompletedTurns: turn}
-			//	} else if buttonKey == 'p' {
-			//		c.events <- StateChange{turn, Paused}
-			//		for {
-			//			pAgain := <- keyPress
-			//			if pAgain == 'p' {
-			//				fmt.Println("Continuing")
-			//				c.events <- StateChange{turn, Executing}
-			//				break
-			//			}
-			//		}
-			//	}
+			//key presses
+			case buttonKey := <- keyPress:
+				if buttonKey == 'q' {
+					saveImage(p, c, currentWorld, turn)
+					c.events <- ImageOutputComplete{CompletedTurns: turn}
+					c.events <- FinalTurnComplete{CompletedTurns: turn}
+					c.events <- StateChange{turn, Quitting}
+				} else if buttonKey == 's' {
+					saveImage(p, c, currentWorld, turn)
+					c.events <- ImageOutputComplete{CompletedTurns: turn}
+				} else if buttonKey == 'p' {
+					c.events <- StateChange{turn, Paused}
+					for {
+						pAgain := <- keyPress
+						if pAgain == 'p' {
+							fmt.Println("Continuing")
+							c.events <- StateChange{turn, Executing}
+							break
+						}
+					}
+				}
 
 			// ticker
 			case <-done:
