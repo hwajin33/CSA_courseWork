@@ -81,25 +81,6 @@ func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 	return aliveCells
 }
 
-//func getImage(p Params, c distributorChannels, im image.Image) [][]byte{
-// use channels to interact with IO
-
-//	world := make([][]byte, p.ImageHeight)
-//	for i := range world {
-//		world[i] = make([]byte, p.ImageWidth)
-//	}
-//
-//	for y := 0; y < p.ImageHeight; y++ {
-//		for x := 0; x < p.ImageWidth; x++ {
-//			receivedImage := <- c.ioInput
-//if receivedImage != 0 {
-//	fmt.Println(x, y)
-//}
-//			world[y][x] = receivedImage
-//		}
-//	}
-//}
-
 func worker(startY, endY, startX, endX int, world [][]byte, out chan<- [][]uint8, p Params) {
 	imagePortion := calculateNextState(startY, endY, startX, endX, p, world)
 	out <- imagePortion
@@ -118,10 +99,11 @@ func saveImage(p Params, c distributorChannels, world [][]byte, turn int) {
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
-
-	// iterate through every single cell in current world and evertime theres an alivcell pass a cell flipped event through the events channel
+func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
+	// iterate through every single cell in current world and everytime there's an alive cell pass a cell flipped event through the events channel
 	turn := 0
+
+	c.events <- StateChange{turn, Executing}
 
 	// TODO: Create a 2D slice to store the world.
 	currentWorld := make([][]byte, p.ImageHeight)
@@ -134,20 +116,21 @@ func distributor(p Params, c distributorChannels) {
 	c.ioCommand <- ioInput
 	c.ioFilename <- filename
 
+	// loading the image from the IO
 	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
 			currentWorld[y][x] = <-c.ioInput
 		}
 	}
 
-
-	/*for y := 0; y < p.ImageHeight; y++ {
+	for y := 0; y < p.ImageHeight; y++ {
 		for x := 0; x < p.ImageWidth; x++ {
-			if currentWorld [y][x] == 255 {
-				c.events <- CellFlipped{CompletedTurns: 0, util.Cell{x,y}}
+			if currentWorld [y][x] == alive {
+				cell := util.Cell{X: x, Y: y}
+				c.events <- CellFlipped{CompletedTurns: 0, Cell: cell}
 			}
 		}
-	}*/
+	}
 
 	//make aliveCellCount inside the ticker
 	ticker := time.NewTicker(2 * time.Second)
@@ -155,8 +138,31 @@ func distributor(p Params, c distributorChannels) {
 	done := make(chan bool)
 
 	go func() {
-		for {
+		for  { //turn < p.Turns
 			select {
+			// key presses
+			//case buttonKey := <- keyPress:
+			//	if buttonKey == 'q' {
+			//		saveImage(p, c, currentWorld, turn)
+			//		c.events <- ImageOutputComplete{CompletedTurns: turn}
+			//		c.events <- FinalTurnComplete{CompletedTurns: turn}
+			//		c.events <- StateChange{turn, Quitting}
+			//	} else if buttonKey == 's' {
+			//		saveImage(p, c, currentWorld, turn)
+			//		c.events <- ImageOutputComplete{CompletedTurns: turn}
+			//	} else if buttonKey == 'p' {
+			//		c.events <- StateChange{turn, Paused}
+			//		for {
+			//			pAgain := <- keyPress
+			//			if pAgain == 'p' {
+			//				fmt.Println("Continuing")
+			//				c.events <- StateChange{turn, Executing}
+			//				break
+			//			}
+			//		}
+			//	}
+
+			// ticker
 			case <-done:
 				return
 			case <-ticker.C:
@@ -166,23 +172,9 @@ func distributor(p Params, c distributorChannels) {
 				ml.Unlock()
 				c.events <- AliveCellsCount{CompletedTurns: t, CellsCount: aliveCells}
 			default:
-			//	break
 			}
-			//break
-			//fmt.Println("step2")
 		}
 	}()
-
-	//go func() {
-	//	select {
-	//	case <-ticker.C:
-	//		ml.Lock()
-	//		t:= turn
-	//		aliveCells:= len(calculateAliveCells(p, currentWorld))
-	//		ml.Unlock()
-	//		c.events <- AliveCellsCount{CompletedTurns: t, CellsCount: aliveCells}
-	//	}
-	//}()
 
 	// TODO: Execute all turns of the Game of Life.
 	for turn < p.Turns {
@@ -201,7 +193,7 @@ func distributor(p Params, c distributorChannels) {
 			for currentThread < p.Threads {
 				// when we reach to the last thread, start from that thread and end at the p.ImageHeight
 				// if we have floating points after we get the worker height && when we reach to the last thread
-				if currentThread == p.Threads-1 {
+				if currentThread == p.Threads - 1 {
 					//fmt.Printf("t [%d] threads = %d\n", currentThread, p.Threads)
 					go worker(currentThread*workerHeight, p.ImageHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				} else {
@@ -218,13 +210,14 @@ func distributor(p Params, c distributorChannels) {
 				nextWorld = append(nextWorld, portion...)
 			}
 
-			/*for y := 0; y < p.ImageHeight; y++ {
+			for y := 0; y < p.ImageHeight; y++ {
 				for x := 0; x < p.ImageWidth; x++ {
 					if nextWorld [y][x] != currentWorld[y][x] {
-						c.events <- CellFlipped{CompletedTurns: turn, util.Cell{x,y}}
+						cell := util.Cell{X: x, Y: y}
+						c.events <- CellFlipped{CompletedTurns: turn, Cell: cell}
 					}
 				}
-			}*/
+			}
 
 			ml.Lock()
 			// swapping the worlds
@@ -237,7 +230,9 @@ func distributor(p Params, c distributorChannels) {
 
 		c.events <- TurnComplete{turn}
 	}
+
 	done <- true
+
 	saveImage(p, c, currentWorld, turn)
 
 	aliveCell := calculateAliveCells(p, currentWorld)
