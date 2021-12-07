@@ -23,7 +23,7 @@ func mod(x, m int) int {
 	return (x + m) % m
 }
 
-func calculateNeighbourCells(p Params, x, y int, world [][]byte) int {
+func getAliveNeighbour(p Params, x, y int, world [][]byte) int {
 	neighbours := 0
 	for i := -1; i <= 1; i++ {
 		for j := -1; j <= 1; j++ {
@@ -45,7 +45,7 @@ func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWor
 
 	for y := startY; y < endY; y++ {
 		for x := startX; x < endX; x++ {
-			neighbours := calculateNeighbourCells(p, x, y, currentTurnWorld)
+			neighbours := getAliveNeighbour(p, x, y, currentTurnWorld)
 			if currentTurnWorld[y][x] == alive {
 				if neighbours == 2 || neighbours == 3 {
 					newWorld[y-startY][x] = alive
@@ -99,7 +99,7 @@ func saveImage(p Params, c distributorChannels, world [][]byte, turn int) {
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
+func distributor(p Params, c distributorChannels, keyPresses <-chan rune) {
 	// iterate through every single cell in current world and everytime there's an alive cell pass a cell flipped event through the events channel
 	turn := 0
 
@@ -134,14 +134,14 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 
 	//make aliveCellCount inside the ticker
 	ticker := time.NewTicker(2 * time.Second)
-	ml := new(sync.Mutex)
+	mutex := new(sync.Mutex)
 	done := make(chan bool)
 
 	go func() {
 		for  { //turn < p.Turns
 			select {
 			//key presses
-			case buttonKey := <- keyPress:
+			case buttonKey := <- keyPresses:
 				if buttonKey == 'q' {
 					saveImage(p, c, currentWorld, turn)
 					c.events <- ImageOutputComplete{CompletedTurns: turn}
@@ -151,12 +151,14 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 					saveImage(p, c, currentWorld, turn)
 					c.events <- ImageOutputComplete{CompletedTurns: turn}
 				} else if buttonKey == 'p' {
+					mutex.Lock()
 					c.events <- StateChange{turn, Paused}
 					for {
-						pAgain := <- keyPress
+						pAgain := <- keyPresses
 						if pAgain == 'p' {
 							fmt.Println("Continuing")
 							c.events <- StateChange{turn, Executing}
+							mutex.Unlock()
 							break
 						}
 					}
@@ -166,10 +168,10 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 			case <-done:
 				return
 			case <-ticker.C:
-				ml.Lock()
+				mutex.Lock()
 				t:= turn
 				aliveCells:= len(calculateAliveCells(p, currentWorld))
-				ml.Unlock()
+				mutex.Unlock()
 				c.events <- AliveCellsCount{CompletedTurns: t, CellsCount: aliveCells}
 			default:
 			}
@@ -192,19 +194,16 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 
 			for currentThread < p.Threads {
 				// when we reach to the last thread, start from that thread and end at the p.ImageHeight
-				// if we have floating points after we get the worker height && when we reach to the last thread
 				if currentThread == p.Threads - 1 {
-					//fmt.Printf("t [%d] threads = %d\n", currentThread, p.Threads)
 					go worker(currentThread*workerHeight, p.ImageHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				} else {
-					//fmt.Printf("b [%d]threads = %d\n", currentThread, p.Threads)
 					go worker(currentThread*workerHeight, (currentThread+1)*workerHeight, 0, p.ImageWidth, currentWorld, out[currentThread], p)
 				}
 				currentThread++
 			}
 
 			nextWorld := make([][]byte, 0)
-			// make another for loop going up #of threads -> assembling the world
+			// assembling the world
 			for partThread := 0; partThread < p.Threads; partThread++ {
 				portion := <-out[partThread]
 				nextWorld = append(nextWorld, portion...)
@@ -219,14 +218,14 @@ func distributor(p Params, c distributorChannels, keyPress <-chan rune) {
 				}
 			}
 
-			ml.Lock()
+			mutex.Lock()
 			// swapping the worlds
 			currentWorld, nextWorld = nextWorld, currentWorld
-			ml.Unlock()
+			mutex.Unlock()
 		}
-		ml.Lock()
+		mutex.Lock()
 		turn++
-		ml.Unlock()
+		mutex.Unlock()
 
 		c.events <- TurnComplete{turn}
 	}
