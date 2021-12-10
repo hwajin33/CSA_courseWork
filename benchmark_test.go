@@ -15,8 +15,8 @@ func BenchmarkGol(b *testing.B) {
 		p := gol.Params{
 			Turns:       benchLength,
 			Threads:     threads,
-			ImageWidth:  64,
-			ImageHeight: 64,
+			ImageWidth:  512,
+			ImageHeight: 512,
 		}
 		name := fmt.Sprintf("%dx%dx%d-%d", p.ImageWidth, p.ImageHeight, p.Turns, p.Threads)
 		b.Run(name, func(b *testing.B) {

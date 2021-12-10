@@ -19,22 +19,22 @@ type distributorChannels struct {
 const alive = 255
 const dead = 0
 
-func mod(x, m int) int {
-	return (x + m) % m
-}
-
 func getAliveNeighbour(p Params, x, y int, world [][]byte) int {
 	neighbours := 0
 	for i := -1; i <= 1; i++ {
 		for j := -1; j <= 1; j++ {
 			if !(i == 0 && j == 0) {
-				if world[mod(y+i, p.ImageHeight)][mod(x+j, p.ImageWidth)] == alive {
+				if world[modulus(y+i, p.ImageHeight)][modulus(x+j, p.ImageWidth)] == alive {
 					neighbours++
 				}
 			}
 		}
 	}
 	return neighbours
+}
+
+func modulus(i, m int) int {
+	return (i + m) % m
 }
 
 func calculateNextState(startY, endY, startX, endX int, p Params, currentTurnWorld [][]byte) [][]byte {
